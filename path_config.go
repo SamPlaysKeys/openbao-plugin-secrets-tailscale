@@ -8,6 +8,7 @@ import (
 	"github.com/openbao/openbao/sdk/v2/logical"
 )
 
+// TODO: Integrate "tsnet" as an alternative method for authenticating with Tailscale initially
 type configData struct {
 	APIKey  string `json:"api_key"`
 	Tailnet string `json:"tailnet"`
