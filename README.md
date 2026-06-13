@@ -6,6 +6,36 @@ An OpenBao secrets engine plugin that dynamically generates short-lived, preauth
 
 When a client queries OpenBao for a secret at path `docker/tailscale/auth-token/<service-name>` (e.g. `docker/tailscale/auth-token/nginx`), the plugin makes an API request to Tailscale to generate a node auth key. The name of the service (`nginx` in this case) is used as the key's description in the Tailscale admin console, making it easy to track which key was generated for which workload.
 
+```mermaid
+sequenceDiagram
+    actor Client
+    participant OpenBao
+    participant Plugin as Tailscale Plugin
+    participant Store as OpenBao Storage
+    participant TSAPI as Tailscale API
+
+    Note over Client,TSAPI: 1. Configuration
+
+    Client->>OpenBao: bao write docker/tailscale/config<br/>api_key=... tailnet=...
+    OpenBao->>Plugin: logical.CreateOperation /config
+    Plugin->>Store: encrypt & store config
+    Store-->>Plugin: ok
+    Plugin-->>OpenBao: nil response
+    OpenBao-->>Client: success
+
+    Note over Client,TSAPI: 2. Auth Token Request
+
+    Client->>OpenBao: bao read docker/tailscale/auth-token/nginx<br/>reusable=false ephemeral=true ...
+    OpenBao->>Plugin: logical.ReadOperation<br/>auth-token/{name}
+    Plugin->>Store: retrieve config
+    Store-->>Plugin: api_key, tailnet, base_url
+    Plugin->>Plugin: build Tailscale API request body<br/>with capabilities & expiry
+    Plugin->>TSAPI: POST /api/v2/tailnet/{tailnet}/keys<br/>BasicAuth(api_key)
+    TSAPI-->>Plugin: { key, id, description, expires }
+    Plugin-->>OpenBao: { auth_token, key_id, ... }
+    OpenBao-->>Client: auth_token
+```
+
 ## Directory Structure
 
 * `main.go` - Entrypoint for the OpenBao plugin server.
